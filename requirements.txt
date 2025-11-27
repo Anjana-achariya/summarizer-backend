@@ -1,4 +1,5 @@
 transformers
+openai
 torch
 sentencepiece
 accelerate
@@ -18,3 +19,4 @@ numpy
 fastapi
 uvicorn
 python-multipart
+
