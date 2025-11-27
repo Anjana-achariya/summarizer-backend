@@ -5,6 +5,13 @@ import asyncio
 from utils import multimodal
 
 app = FastAPI()
+@app.get("/")
+def home():
+    return {
+        "status": "OK",
+        "message": "GlowBrief Summarizer Backend is running 🚀"
+    }
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -74,3 +81,4 @@ async def summarize_text(
 ):
     r = await asyncio.to_thread(multimodal, "text", text, tone, limit, to_english)
     return JSONResponse(r)                      # <-- FIXED
+
