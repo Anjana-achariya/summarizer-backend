@@ -15,7 +15,7 @@ def home():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://summarizer-frontend-fw54.onrender.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -81,4 +81,5 @@ async def summarize_text(
 ):
     r = await asyncio.to_thread(multimodal, "text", text, tone, limit, to_english)
     return JSONResponse(r)                      # <-- FIXED
+
 
