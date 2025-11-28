@@ -19,4 +19,10 @@ numpy
 fastapi
 uvicorn
 python-multipart
+yt-dlp
+youtube-transcript-api
+pydub
+ffmpeg-python
+
+
 
