@@ -1,12 +1,13 @@
 import fitz
 import tempfile
-import subprocess
 import hashlib
 import json
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
+from youtube_transcript_api import YouTubeTranscriptApi
 from openai import OpenAI
+
 client = OpenAI()
 
 from config import (
@@ -17,9 +18,6 @@ from config import (
 )
 
 
-# -----------------------------
-# PDF Extract
-# -----------------------------
 def ef(file: Union[str, bytes]) -> Dict[str, Any]:
     if isinstance(file, str):
         doc = fitz.open(file)
@@ -36,9 +34,6 @@ def ef(file: Union[str, bytes]) -> Dict[str, Any]:
     return {"text": "\n".join(full), "pages": pages, "metadata": {"page_count": len(doc)}}
 
 
-# -----------------------------
-# Audio Transcription (NO AUTO-TRANSLATE)
-# -----------------------------
 def transcribe_audio(path=None, data=None, model=OPENAI_MODEL_WHISPER):
     if not path and not data:
         raise ValueError("Need path or data")
@@ -53,7 +48,7 @@ def transcribe_audio(path=None, data=None, model=OPENAI_MODEL_WHISPER):
     with open(path, "rb") as f:
         r = client.audio.transcriptions.create(
             model=model,
-            file=f         
+            file=f
         )
 
     if tmp:
@@ -63,26 +58,19 @@ def transcribe_audio(path=None, data=None, model=OPENAI_MODEL_WHISPER):
 
 
 # -----------------------------
-# YouTube Transcription
+# NEW YOUTUBE TRANSCRIPT FUNCTION
 # -----------------------------
-def transcribe_youtube(url: str, model=OPENAI_MODEL_WHISPER):
-    tmp = Path(tempfile.mkdtemp())
-    h = hashlib.sha256(url.encode()).hexdigest()[:10]
-    out = str(tmp / f"yt_{h}.%(ext)s")
+def transcribe_youtube(url: str):
+    try:
+        video_id = url.split("v=")[-1].split("&")[0]
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+        text = " ".join(entry["text"] for entry in transcript_list)
+        return {"transcript": text}
 
-    subprocess.run(
-        ["yt-dlp", "--extract-audio", "--audio-format", "mp3", "--output", out, url],
-        check=True
-    )
-
-    mp3 = tmp / f"yt_{h}.mp3"
-    text = transcribe_audio(path=str(mp3), model=model)
-    return {"transcript": text}
+    except Exception:
+        return {"transcript": "Could not fetch YouTube transcript."}
 
 
-# -----------------------------
-# Translate to English (Used only when user presses button)
-# -----------------------------
 def translate_to_english(text: str):
     response = client.chat.completions.create(
         model=OPENAI_MODEL_SUMMARIZER,
@@ -94,9 +82,6 @@ def translate_to_english(text: str):
     return response.choices[0].message.content.strip()
 
 
-# -----------------------------
-# Text Chunking
-# -----------------------------
 def chunk_text(text: str, size=1500, overlap=150):
     words = text.split()
     chunks = []
@@ -106,9 +91,6 @@ def chunk_text(text: str, size=1500, overlap=150):
     return chunks
 
 
-# -----------------------------
-# Summarizer
-# -----------------------------
 def summarize_chunk(text: str, tone="neutral", limit=None, model=OPENAI_MODEL_SUMMARIZER):
     prompt = f"""
     Summarize the following text.
@@ -117,7 +99,7 @@ def summarize_chunk(text: str, tone="neutral", limit=None, model=OPENAI_MODEL_SU
     Word limit: {limit if limit else "no limit"}
 
     Format EXACTLY like this (no JSON):
-    
+
     Title: <title>
 
     • bullet 1
@@ -146,9 +128,6 @@ def summarize_chunk(text: str, tone="neutral", limit=None, model=OPENAI_MODEL_SU
     return response.choices[0].message.content.strip()
 
 
-# -----------------------------
-# Final Pipeline – NO DUPLICATION
-# -----------------------------
 def summarize_pipeline(text: str, tone="neutral", limit=None, to_english=False):
 
     if str(to_english).lower() == "true":
@@ -156,12 +135,10 @@ def summarize_pipeline(text: str, tone="neutral", limit=None, to_english=False):
 
     chunks = chunk_text(text)
 
-    # If small text → summarize once only
     if len(chunks) == 1:
         single = summarize_chunk(chunks[0], tone=tone, limit=limit)
         return {"result": single}
 
-    # For large text → summarize chunks → then final summary
     partial = []
     for chunk in chunks:
         partial.append(summarize_chunk(chunk, tone=tone, limit=limit))
@@ -172,9 +149,6 @@ def summarize_pipeline(text: str, tone="neutral", limit=None, to_english=False):
     return {"result": final_summary}
 
 
-# -----------------------------
-# Multimodal Router
-# -----------------------------
 def multimodal(source: str, data, tone="neutral", limit=None, to_english=False):
     if source == "pdf":
         t = ef(data)["text"]
