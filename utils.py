@@ -68,7 +68,8 @@ def transcribe_youtube(url: str):
         return {"transcript": text}
 
     except Exception:
-        return {"transcript": "Could not fetch YouTube transcript."}
+        return {"transcript": None}
+
 
 
 def translate_to_english(text: str):
@@ -159,10 +160,19 @@ def multimodal(source: str, data, tone="neutral", limit=None, to_english=False):
         return summarize_pipeline(t, tone, limit, to_english)
 
     if source == "youtube":
-        t = transcribe_youtube(url=data)["transcript"]
+        yt = transcribe_youtube(url=data)
+        t = yt["transcript"]
+
+        if not t:
+            return {
+            "error": "Unable to fetch transcript for this YouTube video. It may have no subtitles or requires login."
+        }
+
         return summarize_pipeline(t, tone, limit, to_english)
+
 
     if source == "text":
         return summarize_pipeline(data, tone, limit, to_english)
 
     raise ValueError("Unsupported source")
+
