@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api import YouTubeTranscriptApi,TranscriptsDisabled, NoTranscriptFound
 from openai import OpenAI
 
 client = OpenAI()
@@ -61,13 +61,30 @@ def transcribe_audio(path=None, data=None, model=OPENAI_MODEL_WHISPER):
 # NEW YOUTUBE TRANSCRIPT FUNCTION
 # -----------------------------
 def transcribe_youtube(url: str):
+    video_id = url.split("v=")[-1].split("&")[0]
+
     try:
-        video_id = url.split("v=")[-1].split("&")[0]
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-        text = " ".join(entry["text"] for entry in transcript_list)
+        try:
+            transcript_list = YouTubeTranscriptApi.get_transcript(
+                video_id,
+                languages=["en", "en-US", "en-GB"],
+            )
+        except (TranscriptsDisabled, NoTranscriptFound):
+            
+            transcript_list = YouTubeTranscriptApi.get_transcript(
+                video_id,
+                languages=["auto", "en", "hi", "es", "fr", "de", "ar", "ru", "ja", "ko"],
+            )
+
+        text = " ".join(
+            entry["text"] for entry in transcript_list
+            if entry.get("text", "").strip()
+        )
+
         return {"transcript": text}
 
-    except Exception:
+    except Exception as e:
+        print("YouTube Transcript Error:", e)
         return {"transcript": None}
 
 
@@ -175,4 +192,5 @@ def multimodal(source: str, data, tone="neutral", limit=None, to_english=False):
         return summarize_pipeline(data, tone, limit, to_english)
 
     raise ValueError("Unsupported source")
+
 
